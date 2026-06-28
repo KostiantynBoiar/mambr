@@ -72,7 +72,9 @@ class DataConfig:
         total_clips: Verified total clip count.
         action_sep: Separator inside the ``actions`` CSV cell.
         action_none: Padding token to drop from the ``actions`` cell.
-        metadata_subdir: Split-CSV directory relative to ``data_root``.
+        metadata_subdir: Split-CSV directory relative to ``data_root`` (and inside the zip).
+        clips_subdir: Clip-mp4 directory relative to ``data_root`` (and inside the zip).
+        audios_subdir: Clip-wav directory relative to ``data_root`` (and inside the zip).
         zip_url: Remote ``mammalps_v1.zip`` (must support HTTP range requests).
         b1_csvs: Split CSV paths inside the zip, fetched without the full download.
     """
@@ -85,6 +87,8 @@ class DataConfig:
     action_sep: str = ";"
     action_none: str = "none"
     metadata_subdir: str = "benchmark_1/metadata"
+    clips_subdir: str = "benchmark_1/clips"
+    audios_subdir: str = "benchmark_1/audios"
     zip_url: str = "https://zenodo.org/records/15040901/files/mammalps_v1.zip"
     b1_csvs: tuple[str, ...] = (
         "benchmark_1/metadata/train.csv",
@@ -106,6 +110,27 @@ class ModelConfig:
     fusion_dim: int = 256
     hidden_dim: int = 256
     dropout: float = 0.1
+
+
+@dataclass
+class EncodersConfig:
+    """Frozen encoder checkpoints and their input parameters.
+
+    Attributes:
+        video_ckpt: HF VideoMAE checkpoint (nearest-available pretrained weights).
+        audio_ckpt: HF AST checkpoint (AudioMAE-adjacent, AudioSet-pretrained).
+        num_frames: Frames sampled per clip window for the video encoder.
+        image_size: Square input resolution for the video encoder.
+        audio_sample_rate: Target sample rate (Hz) for the audio encoder.
+        device: Compute device — ``"auto"`` (mps/cuda/cpu), or an explicit value.
+    """
+
+    video_ckpt: str = "MCG-NJU/videomae-base"
+    audio_ckpt: str = "MIT/ast-finetuned-audioset-10-10-0.4593"
+    num_frames: int = 16
+    image_size: int = 224
+    audio_sample_rate: int = 16000
+    device: str = "auto"
 
 
 @dataclass
@@ -134,6 +159,7 @@ class Config:
         tasks: Task definitions.
         data: Dataset facts and download locations.
         model: Fusion-head architecture.
+        encoders: Frozen encoder checkpoints and input parameters.
         train: Training hyper-parameters.
         modalities: Active modalities, e.g. ``["video"]`` or ``["video", "audio"]``.
         raw: The raw parsed YAML, for any extra keys.
@@ -143,6 +169,7 @@ class Config:
     tasks: TasksConfig = field(default_factory=TasksConfig)
     data: DataConfig = field(default_factory=DataConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
+    encoders: EncodersConfig = field(default_factory=EncodersConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     modalities: list[str] = field(default_factory=lambda: ["video"])
     raw: dict[str, Any] = field(default_factory=dict)
@@ -169,9 +196,10 @@ class Config:
 
         Args:
             raw: Parsed YAML mapping; recognised sections are ``paths``, ``tasks``,
-                ``data``, ``model``, ``train`` plus top-level ``modalities`` / ``seed``.
+                ``data``, ``model``, ``encoders``, ``train`` plus top-level
+                ``modalities`` / ``seed``.
         """
-        for section in ("paths", "tasks", "data", "model", "train"):
+        for section in ("paths", "tasks", "data", "model", "encoders", "train"):
             values = raw.get(section)
             if not values:
                 continue

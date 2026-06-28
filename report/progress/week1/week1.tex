@@ -121,6 +121,20 @@ out near-random ($\approx$\,\textbf{0.09}), exactly as expected for random guess
 the entire input/output pipeline is correct before any GPU time is spent. The emitter doubles
 as the skeleton for the inference script later. \done
 
+\section{Frozen encoders: one-clip probe}
+The first step that touches the real video and audio. Two frozen encoder wrappers were
+written: a \texttt{VideoEncoder} (decodes 16 frames from a clip's mp4 and runs a frozen
+VideoMAE) and an \texttt{AudioEncoder} (loads the clip's wav and runs a frozen AST), each
+producing one mean-pooled embedding and never trained. A \texttt{ClipProbe} pulls a clip's
+mp4 and wav out of the 88\,GB archive with the same HTTP-range trick used for the CSVs (each
+$\sim$0.2\,MB), then runs both encoders. On the M4 laptop (MPS) it produced finite
+\textbf{768-dimensional} video and audio embeddings for real clips. These dimensions
+($D_v = D_a = 768$) are exactly what the feature cache and the fusion head will consume. A
+useful find: each clip ships with a \emph{separate} audio wav, so no audio has to be
+demultiplexed from the video. One small fix was needed --- the latest \texttt{torchaudio}
+routes \texttt{load} through a backend that was not installed, so wav loading was switched to
+\texttt{soundfile}. \done
+
 \section{Reporting infrastructure}
 In parallel, the writing toolchain was set up: the Tectonic LaTeX compiler was installed and
 wired into the editor for live, build-on-save PDF previews. A compile-blocking bug in the
@@ -139,17 +153,17 @@ Item & Status \\
 Environment, vendored scorer, smoke test & \done \\
 Splits parsed + verified (test=1244, total=6135) & \done \\
 Evaluation-format check (scorer accepts our output) & \done \\
-One-clip frozen-encoder probe (first real embedding) & \next \\
-Full feature cache on Kaggle (run once) & --- \\
+One-clip frozen-encoder probe (768-d video + audio) & \done \\
+Full feature cache on Kaggle (run once) & \next \\
 Train head: video, then video+audio (target: V+A $>$ V) & --- \\
 Multi-seed report; lock the baseline & --- \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\paragraph{Immediately next.} Decode 16 frames from a single clip, run the frozen VideoMAE to
-get one real video embedding, and the matching audio embedding --- proving the heavy path on
-one example before extracting all 6135 clips.
+\paragraph{Immediately next.} Run the same frozen encoders over all 6135 clips on a Kaggle
+GPU --- sampling about ten windows per clip --- and write the cached embeddings (one file per
+clip) plus a manifest, ready for the light head to train on.
 
 \paragraph{Open risks / decisions.}
 \begin{itemize}
