@@ -1,0 +1,56 @@
+# --- Data & cache (never commit; huge). Anchored to repo root so source
+#     packages like mammalps_b1/data/ are NOT ignored. ---
+/data/
+/cache/
+*.zip
+*.npy
+*.npz
+*.h5
+*.parquet
+results_*.txt
+results.txt
+
+# --- Model weights / checkpoints ---
+*.ckpt
+*.pt
+*.pth
+checkpoints/
+weights/
+
+# --- Virtual envs ---
+*-env/
+.venv/
+venv/
+env/
+
+# --- Vendored third-party (clone locally, don't commit) ---
+third_party/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
+
+# --- Keep example configs, ignore real local ones ---
+config.local.yaml
+.env
+.claude/
+third_party/
+
+# --- LaTeX build artifacts (the .pdf is left tracked — commit it if you want) ---
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg

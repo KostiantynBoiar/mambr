@@ -1,0 +1,3 @@
+# Video-only baseline. Inherits paths from config.local.yaml / env.
+modalities: [video]
+seed: 0

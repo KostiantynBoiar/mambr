@@ -1,0 +1,4 @@
+# Video+audio baseline. Same head capacity as video.yaml (summation
+# fusion), so any gain over video-only reflects information, not parameters.
+modalities: [video, audio]
+seed: 0

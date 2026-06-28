@@ -1,0 +1,294 @@
+% =====================================================================
+%  MSc Dissertation — University of Glasgow, School of Computing Science
+%  Mask-Augmented Multimodal Animal Behaviour Recognition
+%  Compile with Tectonic (handles biber automatically):
+%      tectonic --synctex --keep-logs --keep-intermediates report.tex
+%  See report/README.md for the build guide.
+% =====================================================================
+\documentclass[12pt,a4paper]{report}
+
+\usepackage[a4paper,margin=2.5cm]{geometry}
+
+% --- Fonts (engine-agnostic: Times-like under pdfTeX, Times New Roman under XeTeX) ---
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{mathptmx}
+\else
+  \usepackage{fontspec}
+  \IfFontExistsTF{Times New Roman}{\setmainfont{Times New Roman}}{}
+\fi
+
+\usepackage{setspace}
+\onehalfspacing
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{caption}
+\usepackage[dvipsnames]{xcolor}
+% --- Bibliography: a self-contained thebibliography block at the end of the file.
+%     No biber/bibtex needed, so Tectonic builds it with zero external tools.
+%     (references.bib is kept as a data source for if you later move to biblatex.) ---
+
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=NavyBlue]{hyperref}
+
+\begin{document}
+
+% =====================================================================
+%  TITLE PAGE
+% =====================================================================
+\begin{titlepage}
+\centering
+% Drop the official crest in as report/glasgow_logo.png to render it here.
+\IfFileExists{glasgow_logo.png}{\includegraphics[width=0.6\textwidth]{glasgow_logo.png}\\[2cm]}{\vspace*{2cm}}
+
+{\LARGE\bfseries Mask-Augmented Multimodal\\[4pt] Animal Behaviour Recognition\par}
+\vspace{0.6cm}
+{\large Does the animal's foreground silhouette \emph{shape} help recognise behaviour,\\ where background segmentation maps did not?\par}
+
+\vspace{2.2cm}
+{\Large Kostiantyn Boiar\par}
+
+\vspace{2.2cm}
+{\large
+School of Computing Science\\[2pt]
+Sir Alwyn Williams Building\\[2pt]
+University of Glasgow\\[2pt]
+G12 8RZ\par}
+
+\vspace{2.2cm}
+{\normalsize A dissertation presented in part fulfilment of the requirements of the\\
+Degree of Master of Science at the University of Glasgow\par}
+
+\vspace{1.5cm}
+{\normalsize \today\par}
+\end{titlepage}
+
+% =====================================================================
+%  FRONT MATTER (roman page numbers, not listed in the ToC)
+% =====================================================================
+\pagenumbering{roman}
+
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+% TODO: finalise once results are in.
+Multimodal models recognise animal behaviour from video, and increasingly from audio and
+pose. This dissertation asks a narrow, untested question: does adding the animal's
+\emph{foreground silhouette}---its outline shape, tracked through a clip---improve
+behaviour recognition over video(+audio) baselines, and is any benefit concentrated in the
+posture- and contact-defined behaviours where shape should matter most? The motivation is a
+specific published result: on the MammAlps benchmark, \emph{background/scene} segmentation
+maps did not help recognition, while audio gave a small lift. Existing mask-based work uses
+segmentation only to \emph{remove} the background or to crop a region of interest; none
+treats the silhouette shape itself as a fused, positive input. The approach is deliberately
+compute-light: every heavy encoder is frozen and its features cached once, so only a small
+fusion head is trained. The contribution is the answer and its per-behaviour analysis,
+rather than the model wiring.
+
+\chapter*{Education Use Consent}
+\addcontentsline{toc}{chapter}{Education Use Consent}
+\noindent I hereby give my permission for this project to be shown to other University of
+Glasgow students and to be distributed in an electronic form. Please note that you are under
+no obligation to sign this declaration, but doing so would help future students.
+
+\vspace{1.5cm}
+\noindent\begin{tabular}{@{}p{0.5\textwidth}p{0.5\textwidth}@{}}
+Name: Kostiantyn Boiar & Signature: \rule{4cm}{0.4pt}
+\end{tabular}
+
+\chapter*{Acknowledgements}
+\addcontentsline{toc}{chapter}{Acknowledgements}
+% TODO: thank supervisor, group, data providers, family.
+I would like to thank my supervisor, \textbf{[Supervisor name]}, for their guidance and
+feedback throughout this project. % Add further acknowledgements before submission.
+
+\chapter*{AI Usage Declaration}
+\addcontentsline{toc}{chapter}{AI Usage Declaration}
+% TODO: complete honestly and accurately before submission (required by the School).
+I acknowledge the use of AI-based tools during the preparation of this dissertation.
+% Describe here exactly which tools were used and for what (e.g. literature search support,
+% grammar/spelling checks, code scaffolding), and confirm that no AI tool was used to
+% generate original research results, conduct experiments, or replace your own analysis.
+
+\tableofcontents
+
+\clearpage
+\pagenumbering{arabic}
+
+% =====================================================================
+%  CHAPTER 1 — INTRODUCTION
+% =====================================================================
+\chapter{Introduction}
+\label{ch:introduction}
+
+\section{Motivation}
+% TODO: expand. Recognising what an animal is *doing* underpins ecology and neuroscience;
+% multimodal benchmarks combine video, audio and (scene) segmentation; the open question is
+% whether the animal's foreground shape adds signal that the background cannot.
+\textit{[Draft] Recognising what an animal is doing from camera footage underpins both
+ecology and neuroscience. Recent benchmarks combine several signals---video, audio, and
+reference scene-segmentation maps---yet the representation that discards the background
+entirely and keeps only the animal's shape has not been tested as a positive input.}
+
+\section{Contributions}
+\begin{itemize}
+  \item A reproducible, frozen-feature \textbf{video} and \textbf{video+audio} baseline on
+        MammAlps Benchmark~I, scored with the authors' official evaluation script.
+  \item A \textbf{foreground-silhouette shape} modality (SAM\,2 masks $\rightarrow$ shape
+        descriptors) fused via a light, capacity-matched head with modality dropout.
+  \item An \textbf{ablation ladder} (video $\rightarrow$ +mask $\rightarrow$ +audio
+        $\rightarrow$ +audio+mask) and a \textbf{per-behaviour} analysis focused on
+        posture- and contact-defined classes, plus a background-shift robustness test.
+\end{itemize}
+
+% =====================================================================
+%  CHAPTER 2 — BACKGROUND AND RELATED WORK
+% =====================================================================
+\chapter{Background and Related Work}
+\label{ch:related}
+
+This chapter reviews the work this dissertation builds on and positions its contribution.
+It covers multimodal behaviour-recognition benchmarks and the role of the background
+(Sections~\ref{sec:multimodal}--\ref{sec:background}), the use of segmentation and masks in
+action recognition (Section~\ref{sec:masks}), pose-based behaviour analysis
+(Section~\ref{sec:pose}), and modality-fusion under missing inputs (Section~\ref{sec:fusion}),
+before summarising the gap this work addresses (Section~\ref{sec:gap}).
+
+\section{Multimodal animal behaviour recognition}
+\label{sec:multimodal}
+Recognising behaviour from camera footage has shifted from single-stream video classifiers
+to multimodal models. MammAlps~\cite{mammalps} is a multimodal, multi-view wildlife
+benchmark providing video, audio, and reference scene-segmentation maps, with a hierarchical
+label space of activities and actions across several species and a VideoMAE-based
+baseline~\cite{videomae}. Two of its findings frame this dissertation. First, audio gives a
+small but real improvement over video alone. Second, the reference \emph{scene}
+segmentation maps---a single semantic map of the background per fixed camera viewpoint,
+essentially static across a clip---did \emph{not} improve over the video or video+audio
+models. In other words, the benchmark already segments, but it segments the scene rather
+than the animal, and that scene information does not help the model read behaviour.
+
+\section{The role of the background}
+\label{sec:background}
+PanAf-FGBG~\cite{panaf} pairs each chimpanzee video with a matching empty-background video
+and uses SAM\,2~\cite{sam2} masks to \emph{erase} the animal and synthesise backgrounds. Its
+purpose is to expose how strongly models lean on behaviour-correlated background, and how
+that reliance harms out-of-distribution generalisation across camera locations. Crucially,
+the mask there is a tool for \emph{removing} the foreground: the object of study is the
+background, not the animal's shape.
+
+\section{Masks and segmentation in action recognition}
+\label{sec:masks}
+Mask-guided action recognition has been explored, but typically as a means of
+background suppression rather than as a shape signal in its own right. MAROON~\cite{maroon},
+for example, forms background-removed cutouts (via Mask R-CNN) and feeds them as an
+additional stream, without treating the silhouette shape as a dedicated, fused modality and
+without pose. The Segment Anything Model~2 (SAM\,2)~\cite{sam2} makes per-frame foreground
+segmentation cheap and promptable---masks can be initialised from animal tracks or boxes and
+propagated across a clip---which is the enabling tool for extracting a foreground silhouette
+at scale.
+
+\section{Pose-based behaviour analysis}
+\label{sec:pose}
+Pose-based pipelines encode the animal's skeleton rather than raw pixels. Spatial-temporal
+graph networks such as ST-GCN~\cite{stgcn} model keypoint trajectories, and pose-driven
+behaviour classifiers such as PoseR~\cite{poser} are lightweight and effective. Pose is
+compact, but keypoints capture body \emph{configuration} only sparsely, and they weakly
+capture two-body \emph{contact}, where the relevant signal is how two bodies overlap and
+touch. LookAgain~\cite{lookagain} reports exactly this asymmetry: added visual context helps
+some contact behaviours yet not those whose geometry pose already pins down---motivating a
+dedicated shape stream for contact- and posture-defined behaviours.
+
+\section{Missing-modality robustness and fusion}
+\label{sec:fusion}
+For an added modality to be practical it must be droppable at test time. ActionMAE~\cite{actionmae}
+trains with modality dropout so that a multimodal model degrades gracefully when an input is
+absent. This design directly informs the fusion head used here, allowing the silhouette
+stream to be omitted at inference without retraining. Where a richer appearance feature is
+needed, frozen self-supervised encoders such as DINOv2~\cite{dinov2} provide strong
+masked-crop embeddings, held in reserve should hand-crafted shape descriptors underperform.
+
+\section{Datasets}
+\label{sec:datasets}
+MammAlps~\cite{mammalps} is the primary dataset: it natively carries video, audio and
+behaviour labels and supplies the published baseline to reproduce. MABe22~\cite{mabe22}
+(mouse-triplet subset: clean top-view video and named contact behaviours, but no audio)
+serves as a controlled second setting in which inter-animal contact geometry can be tested
+directly, which MammAlps's largely single-animal clips cannot.
+
+\section{Summary and research gap}
+\label{sec:gap}
+If the background does not help behaviour recognition~\cite{mammalps} and models over-rely
+on it~\cite{panaf}, the obvious untested question is whether the one representation that
+discards the background entirely---the animal's foreground silhouette \emph{shape}---adds
+signal. Unlike scene segmentation, a per-frame foreground silhouette is dynamic: its changing
+outline is posture, and the overlap of two animals' masks is contact. Treating this
+silhouette as a fused, positive modality (rather than a background-removal tool or an ROI
+crop) is unaddressed, and is the gap this dissertation targets.
+
+% =====================================================================
+%  CHAPTER 3 — METHODOLOGY  (skeleton)
+% =====================================================================
+\chapter{Methodology}
+\label{ch:method}
+% TODO: write up as the implementation lands.
+\section{Datasets and splits}
+\section{Frozen feature extraction and caching}
+\section{Foreground silhouette and shape features}
+\section{Fusion head and modality dropout}
+\section{Training and evaluation protocol}
+
+% =====================================================================
+%  CHAPTER 4 — EVALUATION  (skeleton)
+% =====================================================================
+\chapter{Evaluation}
+\label{ch:eval}
+% TODO: results once experiments are run.
+\section{Metrics}
+\section{Video and video+audio baselines}
+\section{Ablation ladder: video $\to$ +mask $\to$ +audio $\to$ +audio+mask}
+\section{Per-behaviour analysis}
+\section{Background-shift robustness}
+
+% =====================================================================
+%  CHAPTER 5 — CONCLUSION  (skeleton)
+% =====================================================================
+\chapter{Conclusion}
+\label{ch:conclusion}
+\section{Discussion}
+\section{Limitations}
+\section{Future work}
+
+% =====================================================================
+%  BIBLIOGRAPHY  (kept in sync with references.bib; entries flagged "verify"
+%  carry over the unconfirmed details from the proposal — confirm before submission)
+% =====================================================================
+\addcontentsline{toc}{chapter}{Bibliography}
+\begin{thebibliography}{99}
+
+\bibitem{panaf} O.~Brookes et al. \emph{The PanAf-FGBG Dataset: Understanding the Impact of Backgrounds in Wildlife Behaviour Recognition.} CVPR, 2025. arXiv:2502.21201.
+
+\bibitem{mammalps} V.~Gabeff, H.~Qi, B.~Flaherty, G.~S\"umb\"ul, A.~Mathis, and D.~Tuia. \emph{MammAlps: A Multi-view Video Behavior Monitoring Dataset of Wild Mammals in the Swiss Alps.} CVPR, 2025. arXiv:2503.18223.
+
+\bibitem{lookagain} W.~Li, J.~Ke, Y.~Wang, C.~Li, and A.~Wu. \emph{Learning When to Look: On-Demand Keypoint--Video Fusion for Animal Behavior Analysis.} 2026. arXiv:2603.07279.
+
+\bibitem{dinov2} M.~Oquab et al. \emph{DINOv2: Learning Robust Visual Features without Supervision.} Transactions on Machine Learning Research, 2024. arXiv:2304.07193.
+
+\bibitem{poser} \emph{PoseR: Deep Learning for Behavioural Classification from Pose.} Open Biology, 16(1):250322, 2026. doi:10.1098/rsob.250322. \textcolor{red}{[authors --- verify]}
+
+\bibitem{sam2} N.~Ravi et al. \emph{SAM\,2: Segment Anything in Images and Videos.} ICLR, 2025. arXiv:2408.00714.
+
+\bibitem{maroon} F.~Schindler et al. \emph{Mask-Guided Multi-Stream Action Recognition.} Applied Sciences, 14(2):514, 2024. \textcolor{red}{[verify title and authors]}
+
+\bibitem{mabe22} J.~J.~Sun et al. \emph{The MABe22 Benchmark: Learning Multi-agent and Multi-species Behavior Representations.} ICML, 2023. arXiv:2207.10553.
+
+\bibitem{videomae} Z.~Tong, Y.~Song, J.~Wang, and L.~Wang. \emph{VideoMAE: Masked Autoencoders are Data-Efficient Learners for Self-Supervised Video Pre-Training.} NeurIPS, 2022. arXiv:2203.12602.
+
+\bibitem{actionmae} S.~Woo et al. \emph{Towards Good Practices for Missing Modality Robust Action Recognition.} AAAI, 2023. arXiv:2211.13916.
+
+\bibitem{stgcn} S.~Yan, Y.~Xiong, and D.~Lin. \emph{Spatial Temporal Graph Convolutional Networks for Skeleton-Based Action Recognition.} AAAI, 2018.
+
+\end{thebibliography}
+
+\end{document}
