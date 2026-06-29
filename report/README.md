@@ -23,6 +23,16 @@ cd report/progress/week1 && tectonic --synctex --keep-logs --keep-intermediates 
 
 Each produces a `.pdf` next to its source.
 
+## Make a PDF viewable inline on GitHub
+Tectonic writes PDFs with compressed cross-reference / object streams (PDF 1.5), which
+GitHub's inline viewer cannot render ("Error loading PDF page number 1") — though the file
+is valid and downloads/opens fine. After building, rewrite it with a classic xref table so
+GitHub previews it (lossless, same content):
+
+```bash
+qpdf --object-streams=disable in.pdf out.pdf && mv out.pdf in.pdf   # brew install qpdf
+```
+
 ## Build (VS Code, live preview)
 With the LaTeX Workshop extension, open any `.tex` and press **Cmd+S** — it rebuilds on save
 and refreshes the PDF. Open the preview with **Cmd+Alt+V**. Cmd+click in the PDF jumps to the
