@@ -13,7 +13,13 @@ report/
 ```
 
 ## Build (terminal)
-Run Tectonic **inside the document's folder**:
+Easiest — rebuild **everything** and make each PDF GitHub-viewable in one go:
+
+```bash
+report/build.sh                 # needs: brew install tectonic ghostscript
+```
+
+Or build a single document with Tectonic inside its folder:
 
 ```bash
 cd report/proposal       && tectonic --synctex --keep-logs --keep-intermediates proposal.tex
@@ -24,13 +30,13 @@ cd report/progress/week1 && tectonic --synctex --keep-logs --keep-intermediates 
 Each produces a `.pdf` next to its source.
 
 ## Make a PDF viewable inline on GitHub
-Tectonic writes PDFs with compressed cross-reference / object streams (PDF 1.5), which
-GitHub's inline viewer cannot render ("Error loading PDF page number 1") — though the file
-is valid and downloads/opens fine. After building, rewrite it with a classic xref table so
-GitHub previews it (lossless, same content):
+GitHub's inline viewer cannot render Tectonic's PDFs ("Error loading PDF page number 1"),
+though they are valid and download fine. `build.sh` handles this automatically by
+re-rendering each PDF with Ghostscript (PDF 1.4). To do it manually after a one-off build:
 
 ```bash
-qpdf --object-streams=disable in.pdf out.pdf && mv out.pdf in.pdf   # brew install qpdf
+gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/prepress \
+   -dNOPAUSE -dBATCH -dQUIET -sOutputFile=out.pdf in.pdf && mv out.pdf in.pdf
 ```
 
 ## Build (VS Code, live preview)
