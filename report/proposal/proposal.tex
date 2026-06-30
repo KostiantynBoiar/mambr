@@ -70,7 +70,22 @@ The gap is the obvious next question nobody has tested. If the background does n
 % ---------------------------------------------------------------------
 \paragraph{Datasets.} \emph{MammAlps}~\cite{mammalps} is the primary dataset: it natively carries video, audio and behaviour labels, and supplies the published baseline to beat. \emph{MABe22}~\cite{mabe22} (mouse-triplet subset: clean top-view video, 12-keypoint pose, and the named contact behaviours Chase, Huddle, Oral Contact, Oral--Genital Contact, but no audio) is a controlled second setting. It is not merely a rehearsal: its multi-animal contact behaviours are where RQ3's inter-animal geometry can be tested directly, which MammAlps's largely single-animal clips cannot.
 
-\paragraph{Architecture.} Figure~\ref{fig:arch} shows the design. Three (optionally four) \emph{frozen} encoders produce features that are computed once, offline, and cached to disk: VideoMAE for the clip, an audio encoder over log-mel spectrograms (MammAlps only), and SAM\,2~\cite{sam2}---prompted by the dataset's animal tracks/boxes and propagated across the clip---for the per-frame silhouette. The silhouette is reduced to cheap, interpretable shape descriptors (area, aspect ratio, solidity, Hu moments, and, for two animals, mask IoU/overlap), with a heavier frozen-DINOv2~\cite{dinov2} masked-crop embedding held in reserve only if the hand-crafted features underperform. The \emph{only} trainable component is a small fusion head: a tiny temporal encoder for the shape series, a one- or two-layer transformer (or even an MLP / late fusion) over the per-modality tokens, and ActionMAE-style modality dropout~\cite{actionmae} so the mask can be dropped at test time.
+\paragraph{Architecture.} Figure~\ref{fig:arch} shows the design. The heavy models are \textbf{off-the-shelf and pretrained}---we run them as-is and \emph{never update their weights}---so their outputs are computed once, offline, and cached to disk (Table~\ref{tab:frozen}). VideoMAE for the clip and an AST/AudioMAE-style audio model over log-mel spectrograms (MammAlps only) are \emph{encoders}: each turns a clip into a fixed vector. SAM\,2~\cite{sam2} is different---it is a \emph{segmentation} model, prompted by the dataset's animal tracks/boxes and propagated across the clip, that outputs a per-frame \emph{mask} rather than an embedding. The silhouette is reduced to cheap, interpretable shape descriptors (area, aspect ratio, solidity, Hu moments, and, for two animals, mask IoU/overlap), with a heavier frozen-DINOv2~\cite{dinov2} masked-crop embedding held in reserve only if the hand-crafted features underperform. The \emph{only} trainable component is a small fusion head: a tiny temporal encoder for the shape series, a one- or two-layer transformer (or even an MLP / late fusion) over the per-modality tokens, and ActionMAE-style modality dropout~\cite{actionmae} so the mask can be dropped at test time.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Modality & Pretrained model (frozen) & Input $\rightarrow$ output \\
+\midrule
+Video & VideoMAE (Kinetics)              & 16 frames $\rightarrow$ embedding \\
+Audio & AST / AudioMAE-style (AudioSet)  & wav $\rightarrow$ spectrogram $\rightarrow$ embedding \\
+Shape & SAM\,2~\cite{sam2} $+$ shape descriptors & frame $+$ box $\rightarrow$ \emph{mask} $\rightarrow$ shape numbers \\
+\bottomrule
+\end{tabular}
+\caption{The frozen building blocks: off-the-shelf pretrained models, run once and cached, \emph{not} trained by us. VideoMAE and AST are encoders (clip\,$\rightarrow$\,vector); SAM\,2 is a \emph{segmentation} model whose output mask feeds the shape descriptors. Only the small fusion head (plus the tiny shape temporal encoder) is trained.}
+\label{tab:frozen}
+\end{table}
 
 \begin{figure}[t]
 \centering
@@ -130,10 +145,26 @@ The gap is the obvious next question nobody has tested. If the background does n
 The contribution is \emph{not} ``fuse audio + video + mask and tabulate it''---that alone would be a thin engineering exercise. It is the first treatment of the animal \emph{silhouette shape as a learned, fused modality} for behaviour, with explicit inter-animal contact geometry and a background-robustness test. Each near neighbour is distinct:
 \begin{itemize}
   \item \textbf{MammAlps scene maps}~\cite{mammalps}: a \emph{background} map per viewpoint (no animal shape); shown not to help. We test \emph{foreground} shape.
-  \item \textbf{PanAf-FGBG}~\cite{panaf}: SAM\,2 masks used to \emph{erase} the animal and study the background; gains come from background, not silhouette. We keep the silhouette as a positive signal---and use their result as motivation, since shape is the representation that discards the background they show models over-rely on.
+  \item \textbf{PanAf-FGBG}~\cite{panaf} (the closest work): the \emph{same tool} (SAM\,2 masks) used for the \emph{opposite} purpose. There the mask \emph{removes or swaps} the background, the object of study is the background itself (how much models over-rely on it), and the foreground---when kept---is still RGB \emph{appearance}. We instead keep the mask's \emph{geometry}, the silhouette \emph{shape}, as a positive input, and treat their robustness finding as motivation (shape discards the very background they show models lean on). Table~\ref{tab:vspanaf} makes the contrast explicit.
   \item \textbf{MAROON}~\cite{maroon}: mask-guided action recognition exists, but masks form background-removed cutouts (Mask-R-CNN, not SAM), with no pose and no treatment of shape as its own fused stream.
   \item \textbf{LookAgain}~\cite{lookagain}: keypoint$\leftrightarrow$video fusion using raw video, no masks; its per-behaviour asymmetry motivates a dedicated shape stream for contact behaviours.
 \end{itemize}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+ & \textbf{PanAf-FGBG}~\cite{panaf} (closest) & \textbf{This project} \\
+\midrule
+Mask is used to  & separate / erase / swap the \emph{background} & derive the \emph{silhouette shape} \\
+Object of study  & the background (bias \& robustness)           & the foreground shape (a feature) \\
+Fed to the model & RGB \emph{pixels} (FG/BG appearance)          & \emph{geometry} (outline, area, overlap) \\
+Core question    & do models over-rely on background?            & does shape \emph{add} behaviour signal? \\
+\bottomrule
+\end{tabular}
+\caption{The closest work uses the \emph{same} SAM\,2 masks for the \emph{opposite} purpose: it studies the background it removes, whereas we encode the foreground \emph{shape} it would otherwise discard.}
+\label{tab:vspanaf}
+\end{table}
 
 % ---------------------------------------------------------------------
 \section{Expected results}
