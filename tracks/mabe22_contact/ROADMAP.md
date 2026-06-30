@@ -23,7 +23,13 @@ M0 acquire+confirm ─► M1 LOCK label/eval contract ─► M2 MASKING PILOT (�
 
 ---
 
-## M0 — Acquire MABe22 & confirm the video subset
+## M0 — Acquire MABe22 & confirm the video subset  ✅ DONE
+> Submission-set labels fetched + inspected (`mabe22/scripts/check_data.py`): **1830 labelled
+> sequences × 1800 frames**; the 4 behaviours (`chases`, `huddles`, `oral_oral_contact`,
+> `oral_genital_contact`) confirmed framewise; flat MABe format
+> (`vocabulary`/`label_array[13, 3.294M]`/`frame_number_map`). Keypoints (949 MB) + video deferred
+> to M4/M2. Gate passed.
+
 - **Start from:** the Caltech / AIcrowd release.
 - **Do:** acquire the mouse-triplet data; identify the **video-available** clips; confirm the 12
   keypoints/mouse are present and frame-aligned; confirm resolution (≈512×512) is segmentable.
@@ -32,7 +38,12 @@ M0 acquire+confirm ─► M1 LOCK label/eval contract ─► M2 MASKING PILOT (�
 - **Gate:** video-available count known; keypoints present + frame-aligned. (Video existence is
   already confirmed; this is the concrete obtain-and-check.)
 
-## M1 — Establish & LOCK the label/eval contract (the MABe22 "nail the split")
+## M1 — Establish & LOCK the label/eval contract (the MABe22 "nail the split")  ✅ DONE
+> `EVAL_CONTRACT.md` written; `eval.py` `MABeScorer` (per-behaviour F1 + AP, macro); leakage-safe
+> split by sequence (`data/split.py`); format canary `scripts/emit_dummy.py` ran clean
+> (macro F1≈0.04, AP≈0.02 on random preds); `tests/test_eval_canary.py` asserts split disjointness.
+> **Contract locked.**
+
 - **Do:** determine per-frame/window **label availability** for the four contact behaviours.
   Decide the eval design — **recommended:** supervised classification on labelled contact windows
   with a **leakage-safe split** (split by sequence/animal, never random window), metric per-class
