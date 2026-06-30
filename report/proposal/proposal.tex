@@ -45,11 +45,11 @@
 % ---------------------------------------------------------------------
 \section{Background and motivation}
 % ---------------------------------------------------------------------
-Recognising what an animal is \emph{doing} from camera footage underpins both neuroscience and ecology. Recent benchmarks combine several signals. MammAlps~\cite{mammalps} is a multimodal, multi-view wildlife benchmark (video, audio, and reference segmentation maps; 11 activities and 19 actions across five species) with a VideoMAE-based baseline. Two of its findings frame this proposal. First, audio gives a small but real improvement over video alone. Second, the \emph{reference scene segmentation maps}---a single \emph{semantic map of the background} per fixed camera viewpoint, drawn from an animal-free photo and held essentially static across a clip---did \emph{not} improve over the video or video+audio models. Such a map encodes \emph{where} the camera sits (habitat, terrain, vegetation): context that correlates with species and location, but says nothing about \emph{what the animal's body is doing}; telling the model about the static background does not help it read behaviour. The distinction matters for everything that follows: MammAlps already \emph{segments}---but it segments the \emph{scene}, not the animal.
+Recognising what an animal is \emph{doing} from camera footage underpins both neuroscience and ecology. Recent benchmarks combine several signals. MammAlps~\cite{mammalps} is a multimodal, multi-view wildlife benchmark (video, audio, and reference segmentation maps; 11 activities and 19 actions across five species) with a VideoMAE-based baseline. Two of its findings frame this proposal. First, audio gives a small but real improvement over video alone (class-average mAP \textbf{0.453}\,$\to$\,\textbf{0.473}). Second, the \emph{reference scene segmentation maps}---a single \emph{semantic map of the background} per fixed camera viewpoint, drawn from an animal-free photo and held essentially static across a clip---did not merely fail to help: they \emph{degraded} recognition, dropping video from \textbf{0.453} to \textbf{0.403}, and video+audio+segmentation (0.466) likewise fell short of video+audio (0.473). Such a map encodes \emph{where} the camera sits (habitat, terrain, vegetation): context that correlates with species and location, but says nothing about \emph{what the animal's body is doing}; telling the model about the static background does not help it read behaviour. The distinction matters for everything that follows: MammAlps already \emph{segments}---but it segments the \emph{scene}, not the animal.
 
 A parallel result comes from PanAf-FGBG~\cite{panaf}, which pairs each chimpanzee video with a matching empty-background video and uses SAM\,2 masks to \emph{erase} the animal and synthesise backgrounds. Its purpose is to expose how strongly models lean on behaviour-correlated background, and how that hurts out-of-distribution generalisation. Crucially, the mask there is a tool for \emph{removing} the foreground; the object of study is the background.
 
-Pose-based pipelines (e.g. ST-GCN~\cite{stgcn} and, in the host group, PoseR~\cite{poser}) instead encode the animal's skeleton. Pose is compact and effective, but keypoints capture body \emph{configuration} only sparsely---and weakly capture two-body contact, where the relevant signal is how two bodies overlap and touch. LookAgain~\cite{lookagain} reports exactly this asymmetry: added visual context helps some contact behaviours yet not those whose geometry pose already pins down.
+Pose-based pipelines (e.g. ST-GCN~\cite{stgcn} and PoseR~\cite{poser}) instead encode the animal's skeleton. Pose is compact and effective, but keypoints capture body \emph{configuration} only sparsely---and weakly capture two-body contact, where the relevant signal is how two bodies overlap and touch. LookAgain~\cite{lookagain} reports exactly this asymmetry: added visual context helps some contact behaviours yet not those whose geometry pose already pins down.
 
 The gap is the obvious next question nobody has tested. If the background does not help (MammAlps) and models over-rely on it (PanAf-FGBG), what about the one representation that throws the background away entirely and keeps only the animal's shape? This is a different \emph{object} of segmentation: where MammAlps' map is a \emph{static, scene-level} segmentation of the background, ours is a \emph{per-frame foreground} (instance) segmentation of the animal itself---a silhouette whose changing outline \emph{is} posture, and whose overlap with a second animal's mask \emph{is} contact. Treating this \emph{foreground silhouette as a fused, positive modality}---rather than a background-removal tool or an ROI crop---is unaddressed.
 
@@ -142,7 +142,7 @@ Shape & SAM\,2~\cite{sam2} $+$ shape descriptors & frame $+$ box $\rightarrow$ \
 % ---------------------------------------------------------------------
 \section{Novelty}
 % ---------------------------------------------------------------------
-The contribution is \emph{not} ``fuse audio + video + mask and tabulate it''---that alone would be a thin engineering exercise. It is the first treatment of the animal \emph{silhouette shape as a learned, fused modality} for behaviour, with explicit inter-animal contact geometry and a background-robustness test. Each near neighbour is distinct:
+The contribution is \emph{not} a new shape representation: silhouette- and shape-based motion descriptors are long established in human action recognition (motion-energy/history templates~\cite{bobickdavis}; space-time shapes~\cite{spacetimeshapes}) and in gait recognition~\cite{gaitsurvey}. Our contribution is twofold: (i) we \emph{adapt} silhouette-shape representations to \emph{multimodal wildlife} behaviour recognition, where they are largely unexplored; and (ii) we introduce, to our knowledge, the \emph{first use of inter-animal segmentation-mask contact geometry}---mask IoU, contact-boundary length and mutual occlusion---as explicit features for social/contact behaviour recognition. Pre-empting the obvious objection, each near neighbour is distinct:
 \begin{itemize}
   \item \textbf{MammAlps scene maps}~\cite{mammalps}: a \emph{background} map per viewpoint (no animal shape); shown not to help. We test \emph{foreground} shape.
   \item \textbf{PanAf-FGBG}~\cite{panaf} (the closest work): the \emph{same tool} (SAM\,2 masks) used for the \emph{opposite} purpose. There the mask \emph{removes or swaps} the background, the object of study is the background itself (how much models over-rely on it), and the foreground---when kept---is still RGB \emph{appearance}. We instead keep the mask's \emph{geometry}, the silhouette \emph{shape}, as a positive input, and treat their robustness finding as motivation (shape discards the very background they show models lean on). Table~\ref{tab:vspanaf} makes the contrast explicit.
@@ -177,13 +177,14 @@ The core deliverable is an ablation ladder plus a per-behaviour analysis (Table~
 \toprule
 Configuration & Class-avg mAP & Reading \\
 \midrule
-Video only            & $\approx 0.45^{\dagger}$ & baseline to reproduce \\
-\quad $+$ audio        & $\approx 0.47^{\dagger}$ & audio adds $\approx +0.02$ (the bar) \\
-\quad $+$ mask (shape) & \textbf{target $\gtrsim$ audio} & RQ1/RQ2: does shape match/beat the audio gain? \\
-Video $+$ audio $+$ mask & \textbf{?} & RQ1: does shape add \emph{on top of} audio? \\
+Video only                          & $0.453^{\dagger}$ & baseline to reproduce \\
+\quad $+$ \emph{their} segmentation  & $0.403^{\dagger}$ & background maps \emph{degrade} video (our motivation) \\
+\quad $+$ audio                      & $0.473^{\dagger}$ & audio adds $+0.02$ (the bar) \\
+\quad $+$ mask (\emph{shape})        & \textbf{target $\gtrsim$ audio} & RQ1/RQ2: does \emph{our} shape match/beat the audio gain? \\
+Video $+$ audio $+$ mask             & \textbf{?} & RQ1: does shape add \emph{on top of} audio? \\
 \bottomrule
 \end{tabular}
-\caption{Anticipated pattern (not measured results). $^{\dagger}$Figures reported by MammAlps~\cite{mammalps}, read partly from figures; to be reproduced from released features before any comparison is claimed.}
+\caption{Anticipated pattern (not measured results). $^{\dagger}$Figures reported by MammAlps~\cite{mammalps} (Table~4); their video+audio+segmentation scored $0.466$. Segmentation \emph{lowered} video ($0.453\to0.403$), motivating a foreground-\emph{shape} stream rather than a scene map. Baselines to be reproduced from cached features before any comparison is claimed.}
 \label{tab:expected}
 \end{table}
 
@@ -193,6 +194,8 @@ Video $+$ audio $+$ mask & \textbf{?} & RQ1: does shape add \emph{on top of} aud
   \item \emph{Publishable either way:} any consistent per-class gain on contact classes, with mask-dropout robustness demonstrated.
   \item \emph{Clean negative:} if shape does not help (or only where pose already suffices, echoing LookAgain), that is itself a tidy, citable result---MammAlps already showed background maps don't help; ``foreground shape doesn't either, and here is why'' closes the question and directly informs whether a shape stream is worth adding to PoseR.
 \end{itemize}
+
+\paragraph{Pre-registered ablations.} To keep a $+0.02$-type result interpretable against seed noise, the comparison set \emph{and} the success criterion are fixed \emph{before} running. We isolate: (a)~\textbf{shape descriptors alone} (does shape carry any signal at all?); (b)~\textbf{video vs.\ video+shape} (the key isolation); and (c)~\textbf{full fusion}, video+audio+shape vs.\ video+audio (does shape add \emph{on top of} audio?). Each condition runs over $\geq 5$ seeds with class-balanced sampling and \emph{identical} head capacity, reported as mean class-average mAP with \textbf{95\,\% confidence intervals}, plus per-class AP on the contact/posture classes. \textbf{Success is decided in advance:} shape helps iff (i)~video+shape exceeds video with a 95\,\% CI excluding zero \emph{and} a pre-registered minimum effect of $+0.02$ mAP (the audio-sized gain), \emph{or} (ii)~a per-class AP gain $\geq +0.03$ on contact behaviours (chasing, courtship). A blanked/scrambled-mask control (same parameters, no real shape) rules out capacity effects.
 
 % ---------------------------------------------------------------------
 \section{Feasibility}
@@ -229,6 +232,9 @@ None of the heavy models is ever in the training loop: each is run once on Kaggl
 \bibitem{actionmae} S.~Woo et al. \emph{Towards Good Practices for Missing Modality Robust Action Recognition (ActionMAE).} AAAI, 2023. arXiv:2211.13916.
 \bibitem{stgcn} S.~Yan, Y.~Xiong, D.~Lin. \emph{Spatial Temporal Graph Convolutional Networks for Skeleton-Based Action Recognition.} AAAI, 2018.
 \bibitem{poser} P.~N.~Mullen, B.~Bowlby, H.~C.~Armstrong, A.~Gray, and M.~F.~Zwart. \emph{PoseR: a deep learning toolbox for classifying animal behaviour.} Open Biology, 16(1):250322, 2026. doi:10.1098/rsob.250322.
+\bibitem{bobickdavis} A.~F.~Bobick and J.~W.~Davis. \emph{The Recognition of Human Movement Using Temporal Templates.} IEEE TPAMI, 23(3):257--267, 2001. doi:10.1109/34.910878.
+\bibitem{spacetimeshapes} L.~Gorelick, M.~Blank, E.~Shechtman, M.~Irani, and R.~Basri. \emph{Actions as Space-Time Shapes.} IEEE TPAMI, 29(12):2247--2253, 2007. doi:10.1109/TPAMI.2007.70711.
+\bibitem{gaitsurvey} A.~Sepas-Moghaddam and A.~Etemad. \emph{Deep Gait Recognition: A Survey.} IEEE TPAMI, 45(1):264--284, 2023. doi:10.1109/TPAMI.2022.3151865.
 \end{thebibliography}
 
 \end{document}

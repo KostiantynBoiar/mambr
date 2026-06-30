@@ -35,9 +35,9 @@
           segmentation maps.
     \item On the \textbf{MammAlps} benchmark:
       \begin{itemize}
-        \item audio gives a small lift over video;
-        \item \textbf{background / scene segmentation did \emph{not} help} behaviour
-              recognition.
+        \item audio gives a small lift over video (0.453 $\to$ 0.473 class-avg mAP);
+        \item \textbf{scene segmentation \emph{degraded} it} --- video fell 0.453 $\to$
+              0.403, and video+audio+seg (0.466) stayed below video+audio (0.473).
       \end{itemize}
   \end{itemize}
   \vfill
@@ -57,11 +57,13 @@
           \emph{is} contact.
   \end{itemize}
   \vfill
-  \textbf{Why it is new} --- nobody treats shape this way:
+  \textbf{What is actually new} --- shape itself is \emph{not} (it is long established in
+  human action \& gait recognition; Bobick \& Davis 2001, Gorelick et al.\ 2007):
   \begin{itemize}
-    \item MammAlps scene maps: \emph{background}, shown not to help.
-    \item PanAf-FGBG: masks used to \emph{erase} the animal and study the background.
-    \item MAROON: masks as background-removed cutouts, not shape as its own stream.
+    \item we \textbf{adapt} silhouette-shape to \emph{multimodal wildlife} behaviour
+          recognition; and
+    \item to our knowledge, the \textbf{first use of inter-animal mask contact geometry}
+          (IoU, contact-boundary length, mutual occlusion) for social/contact behaviour.
   \end{itemize}
   \vfill
   \textbf{Hypothesis:} shape helps \textbf{posture- and contact-defined} behaviours
@@ -169,16 +171,18 @@
   \begin{enumerate}
     \item Cache features for all 6{,}135 clips on a Kaggle GPU (run once).
     \item Reproduce the \textbf{video} and \textbf{video+audio} baseline
-          (target $\approx$\,0.45 / 0.47 class-average mAP).
+          (target 0.453 / 0.473 class-avg mAP --- the \emph{MammAlps paper's reported
+          scores}, which we aim to match).
     \item Add the \textbf{SAM\,2 shape} modality and run the ablation:\\
           video $\rightarrow$ +mask $\rightarrow$ +audio $\rightarrow$ +audio+mask.
     \item \textbf{Per-behaviour analysis} (chasing, courtship) and a background-shift
           robustness test.
   \end{enumerate}
   \vfill
-  \begin{block}{Bar for success}
-    A clean baseline, then: does shape help \emph{where background did not}?
-    Even a clean negative result is publishable.
+  \begin{block}{Pre-registered \& honest}
+    Ablations fixed up front --- shape-only / video+shape / full fusion; $\geq 5$ seeds with
+    \textbf{95\,\% CIs}; the success threshold ($+0.02$ mAP, or $+0.03$ per-class on contact
+    behaviours) decided \emph{before} running. Even a clean negative is publishable.
   \end{block}
 \end{frame}
 
