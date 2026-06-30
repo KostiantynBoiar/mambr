@@ -1,7 +1,10 @@
-# --- Data & cache (never commit; huge). Anchored to repo root so source
-#     packages like mammalps_b1/data/ are NOT ignored. ---
+# --- Data & cache (never commit; huge). Anchored so source packages like
+#     tracks/*/<pkg>/data/ are NOT ignored — only the dataset dirs directly
+#     under a track (and at repo root) are. ---
 /data/
 /cache/
+tracks/*/data/
+tracks/*/cache/
 *.zip
 *.npy
 *.npz
@@ -53,4 +56,5 @@ third_party/
 *.fls
 *.fdb_latexmk
 *.bbl
+*_cache/
 *.blg

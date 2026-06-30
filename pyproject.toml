@@ -4,11 +4,17 @@
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Don't lint vendored/third-party code (e.g. the pinned MammAlps eval_b1.py).
+extend-exclude = ["**/evaluation", "third_party"]
 
 [tool.ruff.lint]
 # E/F: pyflakes + pycodestyle, I: import sorting, UP: pyupgrade, B: bugbear.
 select = ["E", "F", "I", "UP", "B"]
 ignore = ["E501"]  # line length is enforced by the formatter, not the linter
+
+[tool.ruff.lint.isort]
+# Track packages live under tracks/ (on sys.path via conftest) — treat as first-party.
+known-first-party = ["mammalps_b1", "mabe22", "common"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
