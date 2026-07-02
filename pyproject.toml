@@ -4,7 +4,7 @@
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-# Don't lint vendored/third-party code (e.g. the pinned MammAlps eval_b1.py).
+# Don't lint vendored/third-party code (e.g. SAM 2/3 + veval under third_party/).
 extend-exclude = ["**/evaluation", "third_party"]
 
 [tool.ruff.lint]
@@ -13,8 +13,8 @@ select = ["E", "F", "I", "UP", "B"]
 ignore = ["E501"]  # line length is enforced by the formatter, not the linter
 
 [tool.ruff.lint.isort]
-# Track packages live under tracks/ (on sys.path via conftest) — treat as first-party.
-known-first-party = ["mammalps_b1", "mabe22", "common"]
+# The zoomtrack package lives at the repo root (on sys.path via conftest) — first-party.
+known-first-party = ["zoomtrack"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

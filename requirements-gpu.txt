@@ -1,0 +1,14 @@
+# ZoomTrack — Part A (caching box, GPU). Adds the frozen backbone + the official scorer on top of
+# requirements-local.txt. Not needed for Part B (select/fuse/track) or the mock-backbone tests.
+#
+# SAM 2/3 and veval are NOT clean PyPI packages — vendor them under third_party/ (gitignored) as
+# pinned git clones with a VENDORED_COMMIT.txt each, then install editable, e.g.:
+#   git clone https://github.com/facebookresearch/sam3 third_party/sam3   # provides SAM 3 + veval
+#   git clone https://github.com/facebookresearch/sam2 third_party/sam2   # SAM 2 fallback
+#   zoomtrack-env/bin/pip install -e third_party/sam3 -e third_party/sam2
+
+-r requirements-local.txt
+
+# --- pinned via third_party/ (see above), listed here for documentation ---
+# sam3            @ third_party/sam3   # frozen backbone (primary) + veval scorer
+# sam2            @ third_party/sam2   # frozen backbone (fallback)
