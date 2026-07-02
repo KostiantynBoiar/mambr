@@ -1,9 +1,0 @@
-# Extra packages for the Kaggle GPU notebook (Part A — feature extraction).
-# Kaggle's base image already ships CUDA torch/torchaudio + numpy/pandas/sklearn,
-# so we only add what's missing. Pin to match requirements-local.txt where it matters
-# (the cache must be byte-compatible across the two machines).
-transformers>=4.40
-av>=11
-librosa>=0.10
-soundfile>=0.12
-pyarrow>=14
