@@ -39,7 +39,7 @@
 \maketitle
 
 \begin{abstract}
-\noindent Multimodal models recognise animal behaviour from video, and sometimes from audio and pose. This project asks a narrow, untested question: does adding the animal's \emph{foreground silhouette}---its outline shape, tracked through a clip---improve behaviour recognition over video(+audio) baselines, and is any benefit concentrated in the posture- and contact-defined behaviours where shape should matter most? The motivation is a specific published result: on the MammAlps benchmark, \emph{background/scene} segmentation maps did not help recognition, while audio gave a small lift~\cite{mammalps}. The nearest mask-based works use segmentation only to \emph{remove} the background or crop a region of interest~\cite{panaf,maroon}; none treats the silhouette shape itself as a fused, positive input. The design is deliberately compute-light: every heavy encoder is frozen and its features are computed once and cached, so only a small fusion head is trained. The contribution is the answer and its analysis---per-behaviour, with inter-animal contact geometry and a background-robustness test---rather than the model wiring. A clean result is useful either way.
+\noindent Multimodal models recognise animal behaviour from video, and sometimes from audio and pose. This project asks a narrow, untested question: does adding the animal's \emph{foreground silhouette}---its outline shape, tracked through a clip---improve behaviour recognition over video(+audio) baselines, and is any benefit concentrated in the posture- and contact-defined behaviours where shape should matter most? The motivation is a specific published result: on the MammAlps benchmark, \emph{background/scene} segmentation maps did not help recognition, while audio gave a small lift~\cite{mammalps}. The nearest mask-based works use segmentation only to \emph{remove} the background or crop a region of interest~\cite{panaf,maroon}; none treats the silhouette shape itself as a fused, positive input. The design is deliberately compute-light: every heavy encoder is frozen and its features are computed once and cached, so only a small fusion head is trained. The contribution is the answer and its analysis---per-behaviour, with a background-robustness test---rather than the model wiring. A clean result is useful either way.
 \end{abstract}
 
 % ---------------------------------------------------------------------
@@ -49,9 +49,9 @@ Recognising what an animal is \emph{doing} from camera footage underpins both ne
 
 A parallel result comes from PanAf-FGBG~\cite{panaf}, which pairs each chimpanzee video with a matching empty-background video and uses SAM\,2 masks to \emph{erase} the animal and synthesise backgrounds. Its purpose is to expose how strongly models lean on behaviour-correlated background, and how that hurts out-of-distribution generalisation. Crucially, the mask there is a tool for \emph{removing} the foreground; the object of study is the background.
 
-Pose-based pipelines (e.g. ST-GCN~\cite{stgcn} and PoseR~\cite{poser}) instead encode the animal's skeleton. Pose is compact and effective, but keypoints capture body \emph{configuration} only sparsely---and weakly capture two-body contact, where the relevant signal is how two bodies overlap and touch. LookAgain~\cite{lookagain} reports exactly this asymmetry: added visual context helps some contact behaviours yet not those whose geometry pose already pins down.
+Pose-based pipelines (e.g. ST-GCN~\cite{stgcn} and PoseR~\cite{poser}) instead encode the animal's skeleton. Pose is compact and effective, but keypoints capture body \emph{configuration} only sparsely---a handful of landmarks, not the full outline that \emph{defines} posture. LookAgain~\cite{lookagain} reports a related asymmetry: added visual context helps some behaviours yet not those whose geometry pose already pins down.
 
-The gap is the obvious next question nobody has tested. If the background does not help (MammAlps) and models over-rely on it (PanAf-FGBG), what about the one representation that throws the background away entirely and keeps only the animal's shape? This is a different \emph{object} of segmentation: where MammAlps' map is a \emph{static, scene-level} segmentation of the background, ours is a \emph{per-frame foreground} (instance) segmentation of the animal itself---a silhouette whose changing outline \emph{is} posture, and whose overlap with a second animal's mask \emph{is} contact. Treating this \emph{foreground silhouette as a fused, positive modality}---rather than a background-removal tool or an ROI crop---is unaddressed.
+The gap is the obvious next question nobody has tested. If the background does not help (MammAlps) and models over-rely on it (PanAf-FGBG), what about the one representation that throws the background away entirely and keeps only the animal's shape? This is a different \emph{object} of segmentation: where MammAlps' map is a \emph{static, scene-level} segmentation of the background, ours is a \emph{per-frame foreground} (instance) segmentation of the animal itself---a silhouette whose changing outline \emph{is} posture. Treating this \emph{foreground silhouette as a fused, positive modality}---rather than a background-removal tool or an ROI crop---is unaddressed.
 
 % ---------------------------------------------------------------------
 \section{Research questions and hypotheses}
@@ -59,18 +59,17 @@ The gap is the obvious next question nobody has tested. If the background does n
 \begin{description}[leftmargin=2.2em,style=nextline]
   \item[RQ1 (does it help?)] Does fusing silhouette-shape features improve behaviour recognition over video and over video+audio baselines?
   \item[RQ2 (where?)] Is any improvement concentrated in posture- and contact-defined behaviours (e.g. chasing, huddling, mounting), rather than spread uniformly?
-  \item[RQ3 (contact geometry)] For two-animal behaviours, do \emph{inter-animal} shape features (mask overlap / IoU, contact-boundary length, mutual occlusion) add signal that pose keypoints capture weakly?
-  \item[RQ4 (robustness)] Is a shape-based model more robust across \emph{unseen camera locations} (background shift) than background-dependent video features---a direct extension of PanAf-FGBG's finding?
+  \item[RQ3 (robustness)] Is a shape-based model more robust across \emph{unseen camera locations} (background shift) than background-dependent video features---a direct extension of PanAf-FGBG's finding?
 \end{description}
 
-\noindent\textbf{Hypothesis.} Foreground shape carries posture and contact information complementary to pose and video. Fusing it will (i) match or exceed the audio-sized gain on the aggregate metric, (ii) show its clearest per-behaviour gains on contact/posture classes, and (iii) degrade more gracefully than video-only features under background shift.
+\noindent\textbf{Hypothesis.} Foreground shape carries posture information complementary to pose and video. Fusing it will (i) match or exceed the audio-sized gain on the aggregate metric, (ii) show its clearest per-behaviour gains on contact/posture classes, and (iii) degrade more gracefully than video-only features under background shift.
 
 % ---------------------------------------------------------------------
 \section{Proposed approach}
 % ---------------------------------------------------------------------
-\paragraph{Datasets.} \emph{MammAlps}~\cite{mammalps} is the primary dataset: it natively carries video, audio and behaviour labels, and supplies the published baseline to beat. \emph{MABe22}~\cite{mabe22} (mouse-triplet subset: clean top-view video, 12-keypoint pose, and the named contact behaviours Chase, Huddle, Oral Contact, Oral--Genital Contact, but no audio) is a controlled second setting. It is not merely a rehearsal: its multi-animal contact behaviours are where RQ3's inter-animal geometry can be tested directly, which MammAlps's largely single-animal clips cannot.
+\paragraph{Dataset.} \emph{MammAlps}~\cite{mammalps} is the dataset: it natively carries video, audio and behaviour labels, and supplies the published baseline to beat. Its single-animal clips across five species are the setting for this shape-as-a-modality study. (The complementary multi-animal question---\emph{inter-animal} mask-contact geometry on MABe22~\cite{mabe22}---is pursued as a \emph{separate} track and is deliberately out of scope here.)
 
-\paragraph{Architecture.} Figure~\ref{fig:arch} shows the design. The heavy models are \textbf{off-the-shelf and pretrained}---we run them as-is and \emph{never update their weights}---so their outputs are computed once, offline, and cached to disk (Table~\ref{tab:frozen}). VideoMAE for the clip and an AST/AudioMAE-style audio model over log-mel spectrograms (MammAlps only) are \emph{encoders}: each turns a clip into a fixed vector. SAM\,2~\cite{sam2} is different---it is a \emph{segmentation} model, prompted by the dataset's animal tracks/boxes and propagated across the clip, that outputs a per-frame \emph{mask} rather than an embedding. The silhouette is reduced to cheap, interpretable shape descriptors (area, aspect ratio, solidity, Hu moments, and, for two animals, mask IoU/overlap), with a heavier frozen-DINOv2~\cite{dinov2} masked-crop embedding held in reserve only if the hand-crafted features underperform. The \emph{only} trainable component is a small fusion head: a tiny temporal encoder for the shape series, a one- or two-layer transformer (or even an MLP / late fusion) over the per-modality tokens, and ActionMAE-style modality dropout~\cite{actionmae} so the mask can be dropped at test time.
+\paragraph{Architecture.} Figure~\ref{fig:arch} shows the design. The heavy models are \textbf{off-the-shelf and pretrained}---we run them as-is and \emph{never update their weights}---so their outputs are computed once, offline, and cached to disk (Table~\ref{tab:frozen}). VideoMAE for the clip and an AST/AudioMAE-style audio model over log-mel spectrograms are \emph{encoders}: each turns a clip into a fixed vector. SAM\,2~\cite{sam2} is different---it is a \emph{segmentation} model, prompted by the dataset's animal tracks/boxes and propagated across the clip, that outputs a per-frame \emph{mask} rather than an embedding. The silhouette is reduced to cheap, interpretable shape descriptors (area, aspect ratio, solidity, Hu moments), with a heavier frozen-DINOv2~\cite{dinov2} masked-crop embedding held in reserve only if the hand-crafted features underperform. The \emph{only} trainable component is a small fusion head: a tiny temporal encoder for the shape series, a one- or two-layer transformer (or even an MLP / late fusion) over the per-modality tokens, and ActionMAE-style modality dropout~\cite{actionmae} so the mask can be dropped at test time.
 
 \begin{table}[h]
 \centering\small
@@ -110,11 +109,11 @@ Shape & SAM\,2~\cite{sam2} $+$ shape descriptors & frame $+$ box $\rightarrow$ \
 % cached features
 \node[feat] (vemb) at (6.4, 2.3)  {Video\\embedding};
 \node[feat] (aemb) at (6.4, 0.0)  {Audio\\embedding};
-\node[feat] (shp)  at (6.4,-2.6)  {Silhouette shape features\\[1pt]\scriptsize area, aspect ratio, solidity,\\ Hu moments, inter-animal IoU};
+\node[feat] (shp)  at (6.4,-2.6)  {Silhouette shape features\\[1pt]\scriptsize area, aspect ratio,\\ solidity, Hu moments};
 % trainable fusion
 \node[train] (fuse) at (10.0, 0.0) {Light fusion head\\\textit{(trainable)}\\[2pt]\scriptsize tiny temporal encoder for shape\\$+$ transformer / MLP fusion\\$+$ modality dropout};
 % output
-\node[result] (out) at (13.3, 0.0) {Behaviour\\[1pt]\scriptsize activity $+$ action (MammAlps);\\ task-wise (MABe22)};
+\node[result] (out) at (13.3, 0.0) {Behaviour\\[1pt]\scriptsize activity\\$+$ action};
 % arrows
 \draw[flow] (vidin) -- (vmae);  \draw[flow] (audin) -- (aenc);  \draw[flow] (mskin) -- (sam);
 \draw[flow] (vmae) -- (vemb);   \draw[flow] (aenc) -- (aemb);   \draw[flow] (sam)  -- (shp);
@@ -137,17 +136,17 @@ Shape & SAM\,2~\cite{sam2} $+$ shape descriptors & frame $+$ box $\rightarrow$ \
 \label{fig:arch}
 \end{figure}
 
-\paragraph{Training and protocol.} Only the head trains, on cached features, on an M4 Pro (PyTorch MPS). Use official splits with a fixed seed; report \emph{mean $\pm$ std over several seeds}, since on datasets this small a $+0.02$ mAP can be noise. Keep the head capacity identical across conditions so any gain reflects \emph{information}, not parameters; an optional control feeds a blanked/scrambled mask (same parameters, no real shape) to confirm the silhouette is doing the work. Hierarchical heads (activity + action) on MammAlps; task-wise heads on MABe22; balanced sampling and per-class reporting throughout.
+\paragraph{Training and protocol.} Only the head trains, on cached features, on an M4 Pro (PyTorch MPS). Use official splits with a fixed seed; report \emph{mean $\pm$ std over several seeds}, since on datasets this small a $+0.02$ mAP can be noise. Keep the head capacity identical across conditions so any gain reflects \emph{information}, not parameters; an optional control feeds a blanked/scrambled mask (same parameters, no real shape) to confirm the silhouette is doing the work. Hierarchical heads (activity + action) on MammAlps; balanced sampling and per-class reporting throughout.
 
 % ---------------------------------------------------------------------
 \section{Novelty}
 % ---------------------------------------------------------------------
-The contribution is \emph{not} a new shape representation: silhouette- and shape-based motion descriptors are long established in human action recognition (motion-energy/history templates~\cite{bobickdavis}; space-time shapes~\cite{spacetimeshapes}) and in gait recognition~\cite{gaitsurvey}. Our contribution is twofold: (i) we \emph{adapt} silhouette-shape representations to \emph{multimodal wildlife} behaviour recognition, where they are largely unexplored; and (ii) we introduce, to our knowledge, the \emph{first use of inter-animal segmentation-mask contact geometry}---mask IoU, contact-boundary length and mutual occlusion---as explicit features for social/contact behaviour recognition. Pre-empting the obvious objection, each near neighbour is distinct:
+The contribution is \emph{not} a new shape representation: silhouette- and shape-based motion descriptors are long established in human action recognition (motion-energy/history templates~\cite{bobickdavis}; space-time shapes~\cite{spacetimeshapes}) and in gait recognition~\cite{gaitsurvey}. Our contribution is to \emph{adapt} silhouette-shape representations to \emph{multimodal wildlife} behaviour recognition---treating the foreground silhouette as a fused, positive modality rather than a background-removal tool---where it is largely unexplored. Pre-empting the obvious objection, each near neighbour is distinct:
 \begin{itemize}
   \item \textbf{MammAlps scene maps}~\cite{mammalps}: a \emph{background} map per viewpoint (no animal shape); shown not to help. We test \emph{foreground} shape.
   \item \textbf{PanAf-FGBG}~\cite{panaf} (the closest work): the \emph{same tool} (SAM\,2 masks) used for the \emph{opposite} purpose. There the mask \emph{removes or swaps} the background, the object of study is the background itself (how much models over-rely on it), and the foreground---when kept---is still RGB \emph{appearance}. We instead keep the mask's \emph{geometry}, the silhouette \emph{shape}, as a positive input, and treat their robustness finding as motivation (shape discards the very background they show models lean on). Table~\ref{tab:vspanaf} makes the contrast explicit.
   \item \textbf{MAROON}~\cite{maroon}: mask-guided action recognition exists, but masks form background-removed cutouts (Mask-R-CNN, not SAM), with no pose and no treatment of shape as its own fused stream.
-  \item \textbf{LookAgain}~\cite{lookagain}: keypoint$\leftrightarrow$video fusion using raw video, no masks; its per-behaviour asymmetry motivates a dedicated shape stream for contact behaviours.
+  \item \textbf{LookAgain}~\cite{lookagain}: keypoint$\leftrightarrow$video fusion using raw video, no masks; its per-behaviour asymmetry motivates a dedicated shape stream for posture behaviours.
 \end{itemize}
 
 \begin{table}[h]
@@ -158,7 +157,7 @@ The contribution is \emph{not} a new shape representation: silhouette- and shape
 \midrule
 Mask is used to  & separate / erase / swap the \emph{background} & derive the \emph{silhouette shape} \\
 Object of study  & the background (bias \& robustness)           & the foreground shape (a feature) \\
-Fed to the model & RGB \emph{pixels} (FG/BG appearance)          & \emph{geometry} (outline, area, overlap) \\
+Fed to the model & RGB \emph{pixels} (FG/BG appearance)          & \emph{geometry} (outline, area) \\
 Core question    & do models over-rely on background?            & does shape \emph{add} behaviour signal? \\
 \bottomrule
 \end{tabular}
@@ -190,17 +189,17 @@ Video $+$ audio $+$ mask             & \textbf{?} & RQ1: does shape add \emph{on
 
 \noindent\textbf{What each outcome means.}
 \begin{itemize}
-  \item \emph{Strong positive:} video+mask beats video-only by at least the audio gain, \emph{or} a clear per-class win ($\sim+0.03$--$0.05$ AP) on contact/posture behaviours (chasing, mounting, Oral--Genital Contact). Headline: shape helps where background maps did not, and for the ``right'' (background-free) reasons---supported by the robustness test (RQ4).
-  \item \emph{Publishable either way:} any consistent per-class gain on contact classes, with mask-dropout robustness demonstrated.
+  \item \emph{Strong positive:} video+mask beats video-only by at least the audio gain, \emph{or} a clear per-class win ($\sim+0.03$--$0.05$ AP) on contact/posture behaviours (e.g.\ chasing, mounting). Headline: shape helps where background maps did not, and for the ``right'' (background-free) reasons---supported by the robustness test (RQ3).
+  \item \emph{Publishable either way:} any consistent per-class gain on contact/posture classes, with mask-dropout robustness demonstrated.
   \item \emph{Clean negative:} if shape does not help (or only where pose already suffices, echoing LookAgain), that is itself a tidy, citable result---MammAlps already showed background maps don't help; ``foreground shape doesn't either, and here is why'' closes the question and directly informs whether a shape stream is worth adding to PoseR.
 \end{itemize}
 
-\paragraph{Pre-registered ablations.} To keep a $+0.02$-type result interpretable against seed noise, the comparison set \emph{and} the success criterion are fixed \emph{before} running. We isolate: (a)~\textbf{shape descriptors alone} (does shape carry any signal at all?); (b)~\textbf{video vs.\ video+shape} (the key isolation); and (c)~\textbf{full fusion}, video+audio+shape vs.\ video+audio (does shape add \emph{on top of} audio?). Each condition runs over $\geq 5$ seeds with class-balanced sampling and \emph{identical} head capacity, reported as mean class-average mAP with \textbf{95\,\% confidence intervals}, plus per-class AP on the contact/posture classes. \textbf{Success is decided in advance:} shape helps iff (i)~video+shape exceeds video with a 95\,\% CI excluding zero \emph{and} a pre-registered minimum effect of $+0.02$ mAP (the audio-sized gain), \emph{or} (ii)~a per-class AP gain $\geq +0.03$ on contact behaviours (chasing, courtship). A blanked/scrambled-mask control (same parameters, no real shape) rules out capacity effects.
+\paragraph{Pre-registered ablations.} To keep a $+0.02$-type result interpretable against seed noise, the comparison set \emph{and} the success criterion are fixed \emph{before} running. We isolate: (a)~\textbf{shape descriptors alone} (does shape carry any signal at all?); (b)~\textbf{video vs.\ video+shape} (the key isolation); and (c)~\textbf{full fusion}, video+audio+shape vs.\ video+audio (does shape add \emph{on top of} audio?). Each condition runs over $\geq 5$ seeds with class-balanced sampling and \emph{identical} head capacity, reported as mean class-average mAP with \textbf{95\,\% confidence intervals}, plus per-class AP on the contact/posture classes. \textbf{Success is decided in advance:} shape helps iff (i)~video+shape exceeds video with a 95\,\% CI excluding zero \emph{and} a pre-registered minimum effect of $+0.02$ mAP (the audio-sized gain), \emph{or} (ii)~a per-class AP gain $\geq +0.03$ on contact/posture behaviours (chasing, courtship). A blanked/scrambled-mask control (same parameters, no real shape) rules out capacity effects.
 
 % ---------------------------------------------------------------------
 \section{Feasibility}
 % ---------------------------------------------------------------------
-None of the heavy models is ever in the training loop: each is run once on Kaggle's free GPU and its outputs cached, so they are a bounded, one-time preprocessing cost rather than a per-step one. The trained head sees only a handful of cached vectors, so it is tiny and re-runs in minutes on a laptop---keeping the experiment in line with PoseR's lightness philosophy, whose real target is cheap \emph{deployment} over long footage. If shape proves useful and cheap inference later matters, there are ready routes (keep the hand-crafted branch, drop the mask via the modality-dropout design, or distil), treated here as future work. The one genuinely heavy step is the single SAM pass to generate masks; this is batched, cached, and gated by a checkpoint around week~5 to reassess if MammAlps night/infrared footage makes masking too slow or noisy---at which point the headline experiment moves to the clean MABe22 setting and MammAlps becomes a stress test.
+None of the heavy models is ever in the training loop: each is run once on Kaggle's free GPU and its outputs cached, so they are a bounded, one-time preprocessing cost rather than a per-step one. The trained head sees only a handful of cached vectors, so it is tiny and re-runs in minutes on a laptop---keeping the experiment in line with PoseR's lightness philosophy, whose real target is cheap \emph{deployment} over long footage. If shape proves useful and cheap inference later matters, there are ready routes (keep the hand-crafted branch, drop the mask via the modality-dropout design, or distil), treated here as future work. The one genuinely heavy step is the single SAM pass to generate masks; this is batched, cached, and gated by a checkpoint around week~5 to reassess if MammAlps night/infrared footage makes masking too slow or noisy---at which point the shape stream falls back to the daytime clips where the silhouette is reliable.
 
 % ---------------------------------------------------------------------
 \section*{Indicative timeline}
@@ -208,10 +207,10 @@ None of the heavy models is ever in the training loop: each is run once on Kaggl
 \noindent
 \begin{tabular}{@{}rl@{}}
 \textbf{Wk 1} & Read core papers; reproduce MammAlps video / video+audio baselines from cached features.\\
-\textbf{Wk 2} & SAM\,2 on Kaggle; generate + cache masks for MABe22 (clean case).\\
-\textbf{Wk 3} & Shape-feature + inter-animal overlap extractor; sanity checks.\\
-\textbf{Wk 4} & Light fusion head + modality dropout; video vs video+mask on MABe22 contact classes.\\
-\textbf{Wk 5} & Cache SAM masks for MammAlps; QC mask quality; go/no-go decision.\\
+\textbf{Wk 2} & SAM\,2 on Kaggle; generate + cache silhouette masks for MammAlps.\\
+\textbf{Wk 3} & Silhouette shape-feature extractor (area, aspect ratio, solidity, Hu moments); sanity checks.\\
+\textbf{Wk 4} & Light fusion head + modality dropout; video vs.\ video+mask, per behaviour.\\
+\textbf{Wk 5} & QC mask quality (incl.\ night/infrared footage); go/no-go decision.\\
 \textbf{Wk 6} & Full MammAlps ablation: video $\to$ +mask $\to$ +audio $\to$ +audio+mask.\\
 \textbf{Wk 7} & Missing-modality robustness; per-class \& background-shift analysis.\\
 \textbf{Wk 8} & Write-up; figures; package cached-feature pipeline + code.\\

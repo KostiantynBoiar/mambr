@@ -53,17 +53,15 @@
   \begin{itemize}
     \item Extract it with \textbf{SAM\,2}, tracked across the clip; fuse it on top of
           video\,+\,audio.
-    \item A silhouette's changing shape \emph{is} posture; two animals' overlapping masks
-          \emph{is} contact.
+    \item A silhouette's changing shape \emph{is} posture --- an explicit, background-free
+          cue the encoders only see entangled with appearance.
   \end{itemize}
   \vfill
   \textbf{What is actually new} --- shape itself is \emph{not} (it is long established in
   human action \& gait recognition; Bobick \& Davis 2001, Gorelick et al.\ 2007):
   \begin{itemize}
     \item we \textbf{adapt} silhouette-shape to \emph{multimodal wildlife} behaviour
-          recognition; and
-    \item to our knowledge, the \textbf{first use of inter-animal mask contact geometry}
-          (IoU, contact-boundary length, mutual occlusion) for social/contact behaviour.
+          recognition --- as a fused, \emph{positive} modality, not a background-removal tool.
   \end{itemize}
   \vfill
   \textbf{Hypothesis:} shape helps \textbf{posture- and contact-defined} behaviours
@@ -82,7 +80,7 @@
     \midrule
     Mask used to     & remove / swap the background  & derive the silhouette \emph{shape} \\
     Object of study  & the \emph{background} (bias)   & the foreground \emph{shape} \\
-    Fed to the model & RGB \emph{pixels} (appearance) & \emph{geometry} (outline, overlap) \\
+    Fed to the model & RGB \emph{pixels} (appearance) & \emph{geometry} (outline, area) \\
     Question         & over-reliance on background?  & does shape \emph{add} signal? \\
     \bottomrule
   \end{tabular}
@@ -189,8 +187,8 @@
 % ---------------------------------------------------------------------
 \begin{frame}{Discussion}
   \begin{itemize}
-    \item Does the scope (single-animal MammAlps clips + a controlled multi-animal set for
-          contact behaviours) look right?
+    \item Does the scope (single-animal MammAlps clips; shape-as-a-modality with a
+          background-robustness test) look right?
     \item Any preference on the exact frozen encoders / compute?
     \item Happy to share the short proposal and the repository.
   \end{itemize}
